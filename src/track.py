@@ -13,6 +13,7 @@ import numpy as np
 import torch
 
 from tracker.multitracker import JDETracker
+#from tracker.YoloTracker import YoloTracker
 from tracking_utils import visualization as vis
 from tracking_utils.log import logger
 from tracking_utils.timer import Timer
@@ -71,6 +72,7 @@ def eval_seq(opt, dataloader, data_type, result_filename, save_dir=None, show_im
     if save_dir:
         mkdir_if_missing(save_dir)
     tracker = JDETracker(opt, frame_rate=frame_rate)
+    # tracker = YoloTracker(opt) ######################################
     timer = Timer()
     results = []
     frame_id = 0
@@ -80,13 +82,14 @@ def eval_seq(opt, dataloader, data_type, result_filename, save_dir=None, show_im
             #continue
         if frame_id % 20 == 0:
             logger.info('Processing frame {} ({:.2f} fps)'.format(frame_id, 1. / max(1e-5, timer.average_time)))
-
+            
         # run tracking
         timer.tic()
         if use_cuda:
             blob = torch.from_numpy(img).cuda().unsqueeze(0)
         else:
             blob = torch.from_numpy(img).unsqueeze(0)
+        #logger.info('path: {}, blob: {}, img0: {}'.format(path, blob.shape, img0.shape))
         online_targets = tracker.update(blob, img0)
         online_tlwhs = []
         online_ids = []

@@ -13,7 +13,7 @@ from torch import nn
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
 
-from dcn_v2 import DCN
+import torchvision
 
 BN_MOMENTUM = 0.1
 logger = logging.getLogger(__name__)
@@ -349,7 +349,7 @@ class DeformConv(nn.Module):
             nn.BatchNorm2d(cho, momentum=BN_MOMENTUM),
             nn.ReLU(inplace=True)
         )
-        #self.conv = DCN(chi, cho, kernel_size=(3,3), stride=1, padding=1, dilation=1, deformable_groups=1)
+        #self.conv = DeformConv2d(chi, cho, kernel_size=(3,3), stride=1, padding=1, dilation=1, deformable_groups=1)
         self.conv = nn.Conv2d(chi, cho, kernel_size=3, stride=1, padding=1, bias=False, dilation=1)
 
     def forward(self, x):

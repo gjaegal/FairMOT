@@ -13,13 +13,13 @@ from torch import nn
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
 
-from dcn_v2 import DCN
+import torchvision
 
 BN_MOMENTUM = 0.1
 logger = logging.getLogger(__name__)
 
 def get_model_url(data='imagenet', name='dla34', hash='ba72cf86'):
-    return join('http://dl.yf.io/dla/models', data, '{}-{}.pth'.format(name, hash))
+    return 'http://dl.yf.io/dla/models' + '/' + data + '/' + '{}-{}.pth'.format(name, hash)
 
 
 def conv3x3(in_planes, out_planes, stride=1):
@@ -341,6 +341,32 @@ def fill_up_weights(up):
     for c in range(1, w.size(0)):
         w[c, 0, :, :] = w[0, 0, :, :]
 
+class DCN(nn.Module):
+
+    def __init__(self, in_channels, out_channels, groups, kernel_size=(3,3), padding=1, stride=1, dilation=1, bias=True):
+        super(DCN, self).__init__()
+        
+        self.offset_net = nn.Conv2d(in_channels=in_channels,
+                                    out_channels=2 * kernel_size[0] * kernel_size[1],
+                                    kernel_size=kernel_size,
+                                    padding=padding,
+                                    stride=stride,
+                                    dilation=dilation,
+                                    bias=True)
+
+        self.deform_conv = torchvision.ops.DeformConv2d(in_channels=in_channels,
+                                                        out_channels=out_channels,
+                                                        kernel_size=kernel_size,
+                                                        padding=padding,
+                                                        groups=groups,
+                                                        stride=stride,
+                                                        dilation=dilation,
+                                                        bias=False)
+
+    def forward(self, x):
+        offsets = self.offset_net(x)
+        out = self.deform_conv(x, offsets)
+        return out
 
 class DeformConv(nn.Module):
     def __init__(self, chi, cho):
@@ -349,7 +375,7 @@ class DeformConv(nn.Module):
             nn.BatchNorm2d(cho, momentum=BN_MOMENTUM),
             nn.ReLU(inplace=True)
         )
-        self.conv = DCN(chi, cho, kernel_size=(3,3), stride=1, padding=1, dilation=1, deformable_groups=1)
+        self.conv = DCN(chi, cho, kernel_size=(3,3), stride=1, padding=1, dilation=1, groups=1)
 
     def forward(self, x):
         x = self.conv(x)

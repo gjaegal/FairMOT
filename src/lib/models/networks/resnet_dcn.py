@@ -15,7 +15,7 @@ import logging
 
 import torch
 import torch.nn as nn
-from dcn_v2 import DCN
+import torchvision
 import torch.utils.model_zoo as model_zoo
 
 BN_MOMENTUM = 0.1
@@ -126,7 +126,32 @@ def fill_fc_weights(layers):
             # torch.nn.init.xavier_normal_(m.weight.data)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
+class DCN(nn.Module):
 
+    def __init__(self, in_channels, out_channels, groups, kernel_size=(3,3), padding=1, stride=1, dilation=1, bias=True):
+        super(DCN, self).__init__()
+        
+        self.offset_net = nn.Conv2d(in_channels=in_channels,
+                                    out_channels=2 * kernel_size[0] * kernel_size[1],
+                                    kernel_size=kernel_size,
+                                    padding=padding,
+                                    stride=stride,
+                                    dilation=dilation,
+                                    bias=True)
+
+        self.deform_conv = torchvision.ops.DeformConv2d(in_channels=in_channels,
+                                                        out_channels=out_channels,
+                                                        kernel_size=kernel_size,
+                                                        padding=padding,
+                                                        groups=groups,
+                                                        stride=stride,
+                                                        dilation=dilation,
+                                                        bias=False)
+
+    def forward(self, x):
+        offsets = self.offset_net(x)
+        out = self.deform_conv(x, offsets)
+        return out
 class PoseResNet(nn.Module):
 
     def __init__(self, block, layers, heads, head_conv):
@@ -220,7 +245,7 @@ class PoseResNet(nn.Module):
             planes = num_filters[i]
             fc = DCN(self.inplanes, planes, 
                     kernel_size=(3,3), stride=1,
-                    padding=1, dilation=1, deformable_groups=1)
+                    padding=1, dilation=1, groups=1)
             # fc = nn.Conv2d(self.inplanes, planes,
             #         kernel_size=3, stride=1, 
             #         padding=1, dilation=1, bias=False)

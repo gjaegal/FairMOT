@@ -47,7 +47,7 @@ class opts(object):
                              help='visualization threshold.')
     
     # model
-    self.parser.add_argument('--arch', default='dla_34', 
+    self.parser.add_argument('--arch', default='yolo', 
                              help='model architecture. Currently tested'
                                   'resdcn_34 | resdcn_50 | resfpndcn_34 |'
                                   'dla_34 | hrnet_18')
@@ -119,6 +119,8 @@ class opts(object):
                              help='path to the input video')
     self.parser.add_argument('--output-format', type=str, default='video', help='video or text')
     self.parser.add_argument('--output-root', type=str, default='../demos', help='expected output root path')
+    
+    self.parser.add_argument('--match_thres', type=float, default=0.8, help='bytetrack matching threshold')
 
     # mot
     self.parser.add_argument('--data_cfg', type=str,
@@ -194,7 +196,7 @@ class opts(object):
 
     opt.root_dir = os.path.join(os.path.dirname(__file__), '..', '..')
     opt.exp_dir = os.path.join(opt.root_dir, 'exp', opt.task)
-    opt.save_dir = os.path.join(opt.exp_dir, opt.exp_id)
+    opt.save_dir = os.path.join(os.path.dirname(__file__), 'trains')
     opt.debug_dir = os.path.join(opt.save_dir, 'debug')
     print('The output will be saved to ', opt.save_dir)
     
@@ -226,7 +228,7 @@ class opts(object):
       if opt.reg_offset:
         opt.heads.update({'reg': 2})
       opt.nID = dataset.nID
-      opt.img_size = (1088, 608)
+      opt.img_size = (960, 608)
       #opt.img_size = (864, 480)
       #opt.img_size = (576, 320)
     else:

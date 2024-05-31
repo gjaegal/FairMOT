@@ -15,7 +15,7 @@ import logging
 
 import torch
 import torch.nn as nn
-from dcn_v2 import DCN
+import torchvision
 import torch.utils.model_zoo as model_zoo
 
 BN_MOMENTUM = 0.1
@@ -222,7 +222,7 @@ class PoseResNet(nn.Module):
         planes = num_filters
         fc = DCN(self.inplanes, planes,
                 kernel_size=(3,3), stride=1,
-                padding=1, dilation=1, deformable_groups=1)
+                padding=1, dilation=1, groups=1)
         # fc = nn.Conv2d(self.inplanes, planes,
         #         kernel_size=3, stride=1,
         #         padding=1, dilation=1, bias=False)
@@ -276,6 +276,33 @@ class PoseResNet(nn.Module):
             self.load_state_dict(pretrained_state_dict, strict=False)
             print('=> init deconv weights from normal distribution')
 
+class DCN(nn.Module):
+
+    def __init__(self, in_channels, out_channels, groups, kernel_size=(3,3), padding=1, stride=1, dilation=1, bias=True):
+        super(DCN, self).__init__()
+        
+        self.offset_net = nn.Conv2d(in_channels=in_channels,
+                                    out_channels=2 * kernel_size[0] * kernel_size[1],
+                                    kernel_size=kernel_size,
+                                    padding=padding,
+                                    stride=stride,
+                                    dilation=dilation,
+                                    bias=True)
+
+        self.deform_conv = torchvision.ops.DeformConv2d(in_channels=in_channels,
+                                                        out_channels=out_channels,
+                                                        kernel_size=kernel_size,
+                                                        padding=padding,
+                                                        groups=groups,
+                                                        stride=stride,
+                                                        dilation=dilation,
+                                                        bias=False)
+
+    def forward(self, x):
+        offsets = self.offset_net(x)
+        out = self.deform_conv(x, offsets)
+        return out
+
 
 class DeformConv(nn.Module):
     def __init__(self, chi, cho):
@@ -284,7 +311,7 @@ class DeformConv(nn.Module):
             nn.BatchNorm2d(cho, momentum=BN_MOMENTUM),
             nn.ReLU(inplace=True)
         )
-        self.conv = DCN(chi, cho, kernel_size=(3, 3), stride=1, padding=1, dilation=1, deformable_groups=1)
+        self.conv = DCN(chi, cho, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1)
         for name, m in self.actf.named_modules():
             if isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)

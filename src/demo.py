@@ -10,7 +10,7 @@ import os.path as osp
 from opts import opts
 from tracking_utils.utils import mkdir_if_missing
 from tracking_utils.log import logger
-import datasets.dataset.jde as datasets
+import datasets.dataset.jde_yolov5 as datasets
 from track import eval_seq
 
 
@@ -29,7 +29,7 @@ def demo(opt):
     frame_dir = None if opt.output_format == 'text' else osp.join(result_root, 'frame')
     eval_seq(opt, dataloader, 'mot', result_filename,
              save_dir=frame_dir, show_image=False, frame_rate=frame_rate,
-             use_cuda=opt.gpus!=[-1])
+             use_cuda=True)
 
     if opt.output_format == 'video':
         output_video_path = osp.join(result_root, 'MOT16-03-results.mp4')

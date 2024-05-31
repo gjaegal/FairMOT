@@ -6,7 +6,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from .common import *
-
+# from ultralytics import YOLO
 
 class Detect(nn.Module):
     stride = None  # strides computed during build
@@ -63,7 +63,7 @@ def fill_fc_weights(layers):
 
 
 class Model(nn.Module):
-    def __init__(self, config='config/yolov5s.yaml', ch=3, nc=None, anchors=None):  # model, input channels, number of classes
+    def __init__(self, config='config/yolov8_p2_mod.yaml', ch=3, nc=None, anchors=None):  # model, input channels, number of classes
         super(Model, self).__init__()
         print(config)
         if isinstance(config, dict):
@@ -100,6 +100,7 @@ class Model(nn.Module):
 
 def parse_model(d, ch):  # model_dict, input_channels(3)
     nc, gd, gw = d['nc'], d['depth_multiple'], d['width_multiple']
+    max_channels = 512
 
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     for i, (f, n, m, args) in enumerate(d['backbone']):  # from, number, module, args
@@ -111,12 +112,12 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
                 pass
 
         n = max(round(n * gd), 1) if n > 1 else n  # depth gain
-        if m in [Conv, Bottleneck, SPP, DWConv, Focus, BottleneckCSP, C3, C3TR, DeConv, DeConvDCN]:
+        if m in [Conv, Bottleneck, SPP, DWConv, Focus, BottleneckCSP, C3, C3TR, DeConv, DeConvDCN, C2f, SPPF]:
             c1, c2 = ch[f], args[0]
-            c2 = make_divisible(c2 * gw, 8)
+            c2 = make_divisible(min(c2,max_channels) * gw, 8)
 
             args = [c1, c2, *args[1:]]
-            if m in [BottleneckCSP, C3, C3TR]:
+            if m in [BottleneckCSP, C3, C3TR, C2f]:
                 args.insert(2, n)  # number of repeats
                 n = 1
         elif m is nn.BatchNorm2d:
@@ -142,15 +143,17 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
     return nn.Sequential(*layers), sorted(save)
 
 
-class PoseYOLOv5s(nn.Module):
+class PoseYolov8(nn.Module):
     def __init__(self, heads, config_file):
         self.heads = heads
-        super(PoseYOLOv5s, self).__init__()
+        super(PoseYolov8, self).__init__()
         self.backbone = Model(config_file)
+        #yolo_model = YOLO(config_file).load(pretrained)
+        #self.backbone = yolo_model
         for head in sorted(self.heads):
             num_output = self.heads[head]
             fc = nn.Sequential(
-                nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=True),
+                nn.Conv2d(160, 64, kernel_size=3, padding=1, bias=True),
                 nn.SiLU(),
                 nn.Conv2d(64, num_output, kernel_size=1, stride=1, padding=0))
             self.__setattr__(head, fc)
@@ -170,13 +173,13 @@ class PoseYOLOv5s(nn.Module):
 def get_pose_net(num_layers, heads, head_conv):
     config_file = os.path.join(
         os.path.dirname(__file__),
-        'networks/config/yolov5s.yaml'
+        'networks/config/ouryolov8.yaml'
     )
     pretrained = os.path.join(
         os.path.dirname(__file__),
-        '../../../models/yolov5s.pt'
+        '../../../models/best.pt'
     )
-    model = PoseYOLOv5s(heads, config_file)
+    model = PoseYolov8(heads, config_file)
     initialize_weights(model, pretrained)
     return model
 
@@ -211,7 +214,7 @@ def initialize_weights(model, pretrained=''):
     if os.path.isfile(pretrained):
         ckpt = torch.load(pretrained)  # load checkpoint
         state_dict = ckpt['model'].float().state_dict()  # to FP32
-        state_dict = intersect_dicts(state_dict, model.backbone.state_dict())  # intersect
+        state_dict = intersect_dicts(state_dict, model.backbone.state_dict(), exclude=('Detect'))  # intersect
         model.backbone.load_state_dict(state_dict, strict=False)  # load
         print('Transferred %g/%g items from %s' % (len(state_dict), len(model.state_dict()), pretrained))  # report
 
